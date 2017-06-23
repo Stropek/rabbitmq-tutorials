@@ -7,19 +7,42 @@ class Program
     public static void Main()
     {
         var factory = new ConnectionFactory() { HostName = "localhost" };
-        using(var connection = factory.CreateConnection())
-        using(var channel = connection.CreateModel())
+
+        using (var connection = factory.CreateConnection())
+        using (var channel = connection.CreateModel())
         {
-            channel.QueueDeclare(queue: "hello", durable: false, exclusive: false, autoDelete: false, arguments: null);
+            channel.ExchangeDeclare("tutorial.exchange", ExchangeType.Direct, true, false, null);
+            channel.QueueDeclare("tutorial.queue", true, false, false, null);
+            channel.QueueBind("tutorial.queue", "tutorial.exchange", "");
 
-            string message = "Hello World!";
-            var body = Encoding.UTF8.GetBytes(message);
+            while (true)
+            {
+                Console.WriteLine("Enter message or type 'x' to exit: ");
+                string message = Console.ReadLine();
 
-            channel.BasicPublish(exchange: "", routingKey: "hello", basicProperties: null, body: body);
-            Console.WriteLine(" [x] Sent {0}", message);
+                if (!string.IsNullOrWhiteSpace(message))
+                {
+                    if (message.Trim().ToLower() == "x")
+                        break;
+
+                    var messages = message.Split(' ');
+
+                    foreach (string part in messages)
+                    {
+                        if (string.IsNullOrWhiteSpace(part))
+                            continue;
+
+                        var address = new PublicationAddress(ExchangeType.Direct, "tutorial.exchange", "");
+                        var properties = channel.CreateBasicProperties();
+                        properties.Persistent = true;
+                        properties.ContentType = "text/plain";
+
+                        var body = Encoding.UTF8.GetBytes(part);
+                        channel.BasicPublish(address, properties, body);
+                        Console.WriteLine($" [x] Sent {part}");
+                    }
+                }
+            }
         }
-
-        Console.WriteLine(" Press [enter] to exit.");
-        Console.ReadLine();
     }
 }
